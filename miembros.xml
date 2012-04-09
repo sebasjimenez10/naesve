@@ -1,0 +1,16 @@
+<grupo>
+    <nombre>Naesve</nombre>
+    <repositorio>https://bitbucket.org/ncanoes/naesve/</repositorio>
+    <miembro>
+        <nombre>Natalia Cano Escobar</nombre>
+        <codigo>200910015010</codigo>
+        <grupo>032</grupo>
+        <email>ncanoes@eafit.edu.co</email>
+    </miembro>
+    <miembro>
+        <nombre>Sebastian Jimenez Velez</nombre>
+        <codigo>200910011010</codigo>
+        <grupo>032</grupo>
+        <email>sjimen14@eafit.edu.co</email>
+    </miembro>
+</grupo>

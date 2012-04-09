@@ -1,0 +1,9 @@
+.phony: make clean
+
+make:
+	gcc -o conctrl conctrl.c -lpthread -W
+	gcc -o procesoctrl procesoctrl.c -W
+	gcc -o ProcesoSuicida ProcesoSuicida.c
+	
+clean:
+	rm -f conctrl procesoctrl ProcesoSuicida
