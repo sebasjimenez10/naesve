@@ -1,9 +1,9 @@
-.phony: make clean
+.phony: make
 
 make:
-	gcc -o conctrl conctrl.c -lpthread -W
-	gcc -o procesoctrl procesoctrl.c -W
-	gcc -o ProcesoSuicida ProcesoSuicida.c
-	
+	gcc -o conctrl        ./src/Linux/ConsolaControl.c   -Wall -lpthread
+	gcc -o procesoctrl    ./src/Linux/ProcesoControl.c   -Wall
+	gcc -o ProcesoSuicida ./src/Linux/ProcesoSuicida.c   -Wall
+
 clean:
 	rm -f conctrl procesoctrl ProcesoSuicida
