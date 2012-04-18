@@ -1,2 +1,0 @@
-ProcesoSui primerSuicida { /home/menes/Documents/Universidad/Semestres/Septimo/SistemasOperativos/Practica/src/Linux :: ProcesoSuicida 10 }
-ProcesoSui segundoSuicida { /home/menes/Documents/Universidad/Semestres/Septimo/SistemasOperativos/Practica/src/Linux :: ProcesoSuicida 15 }
