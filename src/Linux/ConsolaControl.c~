@@ -152,7 +152,7 @@ void * hilo_de_consola( void *arg )
 		close( pipeParentError[0] );
 		close( pipeParentError[1] );
 		
-		execl("procesoctrl",
+		execl("./bin/procesoctrl",
 			"procesoctrl", suiOpt, filepathOpt, filenameOpt, reencOpt, NULL);
 
 		fprintf( stderr, "Error cambiando imagen de proceso\n" );

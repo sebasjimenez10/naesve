@@ -11,11 +11,11 @@
 #include <Windows.h>
 
 //Constantes
-#define PATH "ArchCfgWindows.txt"
+#define PATH "../src/Common/ArchCfg.txt"
 #define TRUE 1
 
 //Estructura que empaqueta la informacion del proceso suicida
-struct SuicideProcessInfo
+struct SuicideProcesstartupInfo
 {
 	char * key;
 	char * id;
@@ -43,9 +43,9 @@ int getLineCount (  ){
 }
 
 //Funcion asigna los datos del proceso suicida en las estructura definida para ello
-struct SuicideProcessInfo setSuicideInfo( char * line ){
+struct SuicideProcesstartupInfo setSuicideInfo( char * line ){
 
-	struct SuicideProcessInfo info;
+	struct SuicideProcesstartupInfo info;
 	char * tokensArray[5];
 	char * delim = " {}:";
 	char * token;
@@ -109,21 +109,21 @@ DWORD WINAPI readStderr( LPVOID lpParameter ){
 
 //Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
 DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
-	struct SuicideProcessInfo * pi = (struct SuicideProcessInfo *) lpParameter;
+	struct SuicideProcesstartupInfo * pi = (struct SuicideProcesstartupInfo *) lpParameter;
 	
 	char suiOpt[200] = "--suicidename=";
 	char filepathOpt[200] = "--filepath=";
 	char filenameOpt[200] = "--filename=";
 	char reencOpt[200] = "--reencarnacion=";
-	char launchArg1[200] = "ProcesoControl.exe ";
+	char launchArg1[200] = "procesoctrl.exe ";
 
-	SECURITY_ATTRIBUTES secattr;
-	STARTUPINFO sInfo;
-	PROCESS_INFORMATION pInfo;
+	SECURITY_ATTRIBUTES securAttr;
+	STARTUPINFO startupInfo;
+	PROCESS_INFORMATION processInfo;
 	
-	HANDLE fatherRead[2];
-	HANDLE fatherReadError[2];
-	HANDLE fatherWrite[2];
+	HANDLE parentReadPipe[2];
+	HANDLE parentErrorPipe[2];
+	HANDLE parentWritePipe[2];
 
 	HANDLE stdoutThread;
 	HANDLE stderrThread;
@@ -141,44 +141,40 @@ DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	strcat_s( launchArg1, 200, " " );
 	strcat_s( launchArg1, 200, reencOpt );
 
-	ZeroMemory(&secattr,sizeof(secattr));
-	secattr.nLength = sizeof(secattr);
-	secattr.bInheritHandle = TRUE;
+	ZeroMemory(&securAttr,sizeof(securAttr));
+	securAttr.nLength = sizeof(securAttr);
+	securAttr.bInheritHandle = TRUE;
 
-	CreatePipe(&fatherRead[0],&fatherRead[1],&secattr,0);
-	SetHandleInformation(fatherRead[0], HANDLE_FLAG_INHERIT, 0);
+	CreatePipe(&parentReadPipe[0],&parentReadPipe[1],&securAttr,0);
+	SetHandleInformation(parentReadPipe[0], HANDLE_FLAG_INHERIT, 0);
 
-	CreatePipe(&fatherReadError[0],&fatherReadError[1],&secattr,0);
-	SetHandleInformation(fatherReadError[0], HANDLE_FLAG_INHERIT, 0);
+	CreatePipe(&parentErrorPipe[0],&parentErrorPipe[1],&securAttr,0);
+	SetHandleInformation(parentErrorPipe[0], HANDLE_FLAG_INHERIT, 0);
 
-	CreatePipe(&fatherWrite[0],&fatherWrite[1],&secattr,0);
-	SetHandleInformation(fatherWrite[1], HANDLE_FLAG_INHERIT, 0);
+	CreatePipe(&parentWritePipe[0],&parentWritePipe[1],&securAttr,0);
+	SetHandleInformation(parentWritePipe[1], HANDLE_FLAG_INHERIT, 0);
 
-	ZeroMemory(&pInfo,sizeof(pInfo));
-	ZeroMemory(&sInfo,sizeof(sInfo));
-	sInfo.cb=sizeof(sInfo);
-	sInfo.hStdInput=fatherWrite[0];
-	sInfo.hStdOutput=fatherRead[1];
-	sInfo.hStdError=fatherReadError[1];
-	sInfo.dwFlags=STARTF_USESTDHANDLES;
+	ZeroMemory(&processInfo,sizeof(processInfo));
+	ZeroMemory(&startupInfo,sizeof(startupInfo));
+	startupInfo.cb=sizeof(startupInfo);
+	startupInfo.hStdInput=parentWritePipe[0];
+	startupInfo.hStdOutput=parentReadPipe[1];
+	startupInfo.hStdError=parentErrorPipe[1];
+	startupInfo.dwFlags=STARTF_USESTDHANDLES;
 
-	//GetStartupInfo(&sInfo);
 
-	if (CreateProcess(NULL, launchArg1, NULL, NULL, TRUE, 0, NULL, NULL, &sInfo, &pInfo)) {
+	if (CreateProcess(NULL, launchArg1, NULL, NULL, TRUE, 0, NULL, NULL, &startupInfo, &processInfo)) {
 	
-		CloseHandle(fatherRead[1]);
-		CloseHandle(fatherReadError[1]);
-		CloseHandle(fatherWrite[0]);
+		CloseHandle(parentReadPipe[1]);
+		CloseHandle(parentErrorPipe[1]);
+		CloseHandle(parentWritePipe[0]);
 
-		// Se inicializan los dos hilos de lectura
-		stdoutThread = CreateThread( NULL, 0, readStdout, (LPVOID) fatherRead[0], 0, NULL);
-		stderrThread = CreateThread( NULL, 0, readStderr, (LPVOID) fatherReadError[0], 0, NULL);
+		// Start reading threads
+		stdoutThread = CreateThread( NULL, 0, readStdout, (LPVOID) parentReadPipe[0], 0, NULL);
+		stderrThread = CreateThread( NULL, 0, readStderr, (LPVOID) parentErrorPipe[0], 0, NULL);
 		
-		WaitForSingleObject(pInfo.hProcess, INFINITE);
-
-		//CloseHandle(fatherRead[0]);
-		//CloseHandle(fatherReadError[0]);
-		//CloseHandle(fatherWrite[1]);
+		//Wait until process finish
+		WaitForSingleObject(processInfo.hProcess, INFINITE);
 
 		WaitForSingleObject(stdoutThread, INFINITE);
 		WaitForSingleObject(stderrThread, INFINITE);
@@ -194,10 +190,9 @@ int main( ){
 	int processCount = getLineCount();
 	FILE * file;
 	char line[200][200];
-	struct SuicideProcessInfo suicides[200];
+	struct SuicideProcesstartupInfo suicides[200];
 	int i = 0;
 
-	//int returnValue;
 	DWORD dwResultado;
 	HANDLE hThread;
 	DWORD *tablaHilos = (LPDWORD) malloc(sizeof(LPDWORD) * processCount);	

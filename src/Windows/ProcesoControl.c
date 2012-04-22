@@ -93,54 +93,52 @@ int main( int argc, char *argv[] )
 
 		STARTUPINFO startupInfo;
 		PROCESS_INFORMATION piProcInfo;
-		SECURITY_ATTRIBUTES secattr;
+		SECURITY_ATTRIBUTES securAttr;
 		DWORD exitCode;
-		DWORD status;
+		DWORD exitValue;
 
-		HANDLE fatherRead[2];
-		HANDLE fatherReadError[2];
-		HANDLE fatherWrite[2];
+		HANDLE parentReadPipe[2];
+		HANDLE parentErrorPipe[2];
+		HANDLE parentWritePipe[2];
 
 		HANDLE stdoutThread;
 		HANDLE stderrThread;
 
-		ZeroMemory(&secattr,sizeof(secattr));
-		secattr.nLength = sizeof(secattr);
-		secattr.bInheritHandle = TRUE;
+		ZeroMemory(&securAttr,sizeof(securAttr));
+		securAttr.nLength = sizeof(securAttr);
+		securAttr.bInheritHandle = TRUE;
 
-		CreatePipe(&fatherRead[0],&fatherRead[1],&secattr,0);
-		SetHandleInformation(fatherRead[0], HANDLE_FLAG_INHERIT, 0);
+		CreatePipe(&parentReadPipe[0],&parentReadPipe[1],&securAttr,0);
+		SetHandleInformation(parentReadPipe[0], HANDLE_FLAG_INHERIT, 0);
 
-		CreatePipe(&fatherReadError[0],&fatherReadError[1],&secattr,0);
-		SetHandleInformation(fatherReadError[0], HANDLE_FLAG_INHERIT, 0);
+		CreatePipe(&parentErrorPipe[0],&parentErrorPipe[1],&securAttr,0);
+		SetHandleInformation(parentErrorPipe[0], HANDLE_FLAG_INHERIT, 0);
 
-		CreatePipe(&fatherWrite[0],&fatherWrite[1],&secattr,0);
-		SetHandleInformation(fatherWrite[1], HANDLE_FLAG_INHERIT, 0);
+		CreatePipe(&parentWritePipe[0],&parentWritePipe[1],&securAttr,0);
+		SetHandleInformation(parentWritePipe[1], HANDLE_FLAG_INHERIT, 0);
 
 		ZeroMemory(&piProcInfo,sizeof(piProcInfo));
 		ZeroMemory(&startupInfo,sizeof(startupInfo));
 		startupInfo.cb=sizeof(startupInfo);
-		startupInfo.hStdInput=fatherWrite[0];
-		startupInfo.hStdOutput=fatherRead[1];
-		startupInfo.hStdError=fatherReadError[1];
+		startupInfo.hStdInput=parentWritePipe[0];
+		startupInfo.hStdOutput=parentReadPipe[1];
+		startupInfo.hStdError=parentErrorPipe[1];
 		startupInfo.dwFlags=STARTF_USESTDHANDLES;
 
-		//GetStartupInfo(&startupInfo);
 		if (CreateProcess(NULL, "ProcesoSuicida.exe", NULL, NULL, TRUE, 0, NULL, NULL, &startupInfo, &piProcInfo)) {
-			CloseHandle(fatherRead[1]);
-			CloseHandle(fatherReadError[1]);
-			CloseHandle(fatherWrite[0]);
+			CloseHandle(parentReadPipe[1]);
+			CloseHandle(parentErrorPipe[1]);
+			CloseHandle(parentWritePipe[0]);
 
 			// Se inicializan los dos hilos de lectura
-			stdoutThread = CreateThread( NULL, 0, readStdout, (LPVOID) fatherRead[0], 0, NULL);
-			stderrThread = CreateThread( NULL, 0, readStderr, (LPVOID) fatherReadError[0], 0, NULL);
+			stdoutThread = CreateThread( NULL, 0, readStdout, (LPVOID) parentReadPipe[0], 0, NULL);
+			stderrThread = CreateThread( NULL, 0, readStderr, (LPVOID) parentErrorPipe[0], 0, NULL);
 			while(1){
-				status = WaitForSingleObject(piProcInfo.hProcess, 0);
-				if (status != 0){
-					// No ha muerto
-					// Manda un mensaje si quiere al proceso suicida
+				exitValue = WaitForSingleObject(piProcInfo.hProcess, 0);
+				if (exitValue != 0){
+					//Still Alive
 				}else{
-					// sleep(60) // Minuto de silencio para el fallecido
+					//Dead
 					GetExitCodeProcess(piProcInfo.hProcess, &exitCode);
 					if( lifes > 0 ){
 						fprintf( stderr, "El Proceso Suicida %s termino por causa %ld -- Proceso Control %d, vidas restantes: %d\n", id, exitCode, pID, lifes );
@@ -148,14 +146,10 @@ int main( int argc, char *argv[] )
 						fprintf( stderr, "El Proceso Suicida %s termino por causa %ld -- Proceso Control %d, vidas restantes: Infinitas\n", id, exitCode, pID );
 					}
 					fflush(stderr);
-					CloseHandle(fatherRead[0]);
+					CloseHandle(parentReadPipe[0]);
 					break;
 				}
 			}
-
-			//CloseHandle(fatherRead[0]); ////////////////
-			//CloseHandle(fatherReadError[0]); /////////////
-			//CloseHandle(fatherWrite[1]); ///////////////
 
 			WaitForSingleObject(stdoutThread, INFINITE);
 			WaitForSingleObject(stderrThread, INFINITE);

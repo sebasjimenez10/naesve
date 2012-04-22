@@ -1,0 +1,2 @@
+ProcesoSui unoSuicida { . :: ProcesoSuicida 120 }
+ProcesoSui segundoSuicida { . :: ProcesoSuicida 80 }
