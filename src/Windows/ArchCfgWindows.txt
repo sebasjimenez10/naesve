@@ -1,0 +1,2 @@
+ProcesoSui unoSuicida { .\bin :: ProcesoSuicida 5 }
+ProcesoSui segundoSuicida { .\bin :: ProcesoSuicida 6 }

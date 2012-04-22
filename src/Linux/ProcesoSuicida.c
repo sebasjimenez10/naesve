@@ -1,3 +1,10 @@
+
+/*
+	Proceso Suicida
+	Name: ProcesoSuicida.c
+*/
+
+//Archivos de encabezado
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
@@ -11,39 +18,43 @@ main(int argc, char *argv[], char *env[]) {
 
 	int value1 = 1;
 	int value2 = 1;
+	
+/*	fprintf( stderr, "Salida error del suicida\n" );*/
+/*	fflush( stderr );*/
 
+/*	fprintf( stdout, "Salida estandar del suicida\n" );*/
+/*	fflush( stdout );*/
+	
 	/* Genera un numero aleatorio para determinar cual
 	sera la causa del suicidio */
 	srandom(time(NULL));
 
 	switch (random() % 7) {
-	  case 0: /* Suicidio voluntario */
-	    exit(random() % 10);
-	    break;
+		case 0: /* Suicidio voluntario */
+			exit(random() % 10);
+			break;
 
-	  case 1: /* Muerte por descuido */
-	    value1 = value1 / (value2 - value2);
-	    break;
+		case 1: /* Muerte por descuido */
+			value1 = value1 / (value2 - value2);
+			break;
 
-	  case 2: /* Auto-asesinato */
-	    kill(getpid(), SIGKILL);
-	    break;
+		case 2: /* Auto-asesinato */
+			kill(getpid(), SIGKILL);
+			break;
 
-	  case 3: /* Suicidio por espera */
-	    alarm(random() % 60); /* Espera hasta maximo 60 segundos */
-	    break;
+		case 3: /* Suicidio por espera */	
+			alarm(random() % 60); /* Espera hasta maximo 60 segundos */
+			break;
 
-	  case 4: /* Asesinado en intento de terrorismo */
-	    __asm__("sti");
-	    break;
+		case 4: /* Asesinado en intento de terrorismo */
+			__asm__("sti");
+			break;
 
-	  case 5: /* Muerte por mal comportamiento */
-	    value1 = *((int*) NULL);
-	    break;
-
-	  default:
-	    break;
-	}
-
+		case 5: /* Muerte por mal comportamiento */
+			value1 = *((int*) NULL);
+			break;
+		default:
+			break;
+	}	
 	return 0; /* Muerte despues de una vida productiva */
 }

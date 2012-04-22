@@ -4,6 +4,7 @@
 	Name: ConsolaControl.c
 */
 
+//Archivos de encabezado
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,20 +14,23 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
+//Constantes
+#define PATH "./src/Linux/ArchCfgLinux.txt"
 #define TRUE 1
-#define FALSE 0
 
+//Estructura que empaqueta la informacion del proceso suicida
 struct SuicideProcessInfo
 {
 	char * key;
 	char * id;
 	char * path;
 	char * filename;
-	char * lives;
+	char * lifes;
 };
 
+//Funcion que obtiene el numero de lineas de un archivo de texto
 int getLineCount (  ){
-	FILE * file = fopen("./src/Common/ArchCfg.txt", "r");
+	FILE * file = fopen(PATH, "r");
 	if( file == NULL ){
 		printf("El archivo no existe\n");
 		exit(EXIT_FAILURE);
@@ -40,6 +44,7 @@ int getLineCount (  ){
 	return count;
 }
 
+//Funcion asigna los datos del proceso suicida en las estructura definida para ello
 struct SuicideProcessInfo setSuicideInfo( char * line ){
 	struct SuicideProcessInfo info;
 	char * tokensArray[5];
@@ -59,13 +64,62 @@ struct SuicideProcessInfo setSuicideInfo( char * line ){
 	info.id = tokensArray[1];
 	info.path = strcat( tokensArray[2], "/" );
 	info.filename = tokensArray[3];
-	info.lives = tokensArray[4];
+	info.lifes = tokensArray[4];
+	
 	return info;
 }
 
+//Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
+void * printStdout( void * file ){
+	
+	FILE * out;
+	int fid = (int) file;
+	
+	while( TRUE ){
+		out = fdopen (fid, "r");
+		if( out == NULL ) break;
+		char stringOut[100]; //Buffer Out
+		while (fgets(stringOut, 100, out) != NULL) {
+			fprintf(stdout, "%s", stringOut);
+		}
+		fflush( stdout );
+		fclose( out );
+	}
+	return 0;
+}
+
+//Hilo que imprime del descriptor de archivo que le asignen al error estandar
+void * printStderr( void * file ){
+	FILE * err;
+	int fid = (int) file;
+	
+	while( TRUE ){
+		err = fdopen (fid, "r");
+		if( err == NULL ) break;
+		char stringErr[100]; //Buffer Err
+		while (fgets(stringErr, 100, err) != NULL) {
+			fprintf(stderr, "%s", stringErr);
+		}
+		fflush( stderr );
+		fclose( err );
+	}
+	return 0;
+}
+
+//Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
 void * hilo_de_consola( void *arg )
 {
 	struct SuicideProcessInfo * pi = (struct SuicideProcessInfo *) arg;
+	
+	char suiOpt[200] = "--suicidename=";
+	char filepathOpt[200] = "--filepath=";
+	char filenameOpt[200] = "--filename=";
+	char reencOpt[200] = "--reencarnacion=";
+	
+	strcat( suiOpt, pi->id );
+	strcat( filepathOpt, pi->path );
+	strcat( filenameOpt, pi->filename );
+	strcat( reencOpt, pi->lifes );
 	
 	int pipeParentRead[2];
 	int pipeParentWrite[2];
@@ -86,117 +140,81 @@ void * hilo_de_consola( void *arg )
 		pthread_exit(NULL);
 	}else if ( pid == 0 )
 	{	
-		//fprintf(stdout, "El hijo del hilo ha sido creado\n" );
-				
-		dup2( pipeParentWrite[0], 0 );
+		dup2( pipeParentWrite[0],0 );
 		close( pipeParentWrite[0] );
 		close( pipeParentWrite[1] );
 		
-		dup2( pipeParentRead[1], 1 );
+		dup2( pipeParentRead[1],1 );
 		close( pipeParentRead[0] );
 		close( pipeParentRead[1] );
 		
-		dup2( pipeParentError[1], 2);
+		dup2( pipeParentError[1],2 );
 		close( pipeParentError[0] );
 		close( pipeParentError[1] );
 		
-		execl("procesoctrl",
-			"procesoctrl", pi->id, pi->path, pi->filename, pi->lives, NULL);
-		/* No deberia llegar a este punto */
+		execl("./bin/procesoctrl",
+			"procesoctrl", suiOpt, filepathOpt, filenameOpt, reencOpt, NULL);
+
 		fprintf( stderr, "Error cambiando imagen de proceso\n" );
 	}
 	
-	close( pipeParentRead[1] );
-	FILE * out = fdopen(pipeParentRead[0], "r");
-	
+	close( pipeParentRead[1] );	
 	close( pipeParentWrite[0] );	
 	/* Para esta primera entrega no esta definido el uso, pero si su declaracion */
-	//FILE * in = fdopen(pipeParentWrite[1], "w");
-	
+	//FILE * in = fdopen(pipeParentWrite[1], "w");	
 	close( pipeParentError[1] );
-	FILE * error = fdopen(pipeParentError[0], "r");
 	
-	while(TRUE){
-		int status;
-		pid_t result = waitpid(pid, &status, WNOHANG);
-		if (result == 0){
-			// Still Alive
-			char stringOut[100]; //Buffer Out
-			char stringErr[100]; //Buffer Err
-			while (fgets(stringOut, 100, out) != NULL) {
-				fprintf(stdout, "%s", stringOut);
-			}
-			while (fgets(stringErr, 100, error) != NULL) {
-				fprintf(stderr, "%s", stringErr);
-			}
-	 	}else{
-	 		// Dead
-			break;
-	 	}
-	}
+	pthread_t threadOut, threadErr;
+	int retErr, retOut;
+	pthread_create( &threadOut, NULL, printStdout, (void *) pipeParentRead[0] );
+	pthread_create( &threadErr, NULL, printStderr, (void *) pipeParentError[0] );
+	
+	int status;
+	waitpid(pid, &status, 0);
 	
 	close(pipeParentRead[0]);
-	close(pipeParentRead[1]);
-	
-	close(pipeParentWrite[0]);
 	close(pipeParentWrite[1]);
-	
 	close(pipeParentError[0]);
-	close(pipeParentError[1]);
-		
+	
+	pthread_join( threadErr, (void **) &retErr );
+	pthread_join( threadOut, (void **) &retOut );
+
 	usleep(200 * 1000);
-	pthread_exit(NULL);
+	return 0;
 }
 
+//Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
 int main( ){
 
-	int processCount = getLineCount();	
-	FILE * file = fopen("./src/Common/ArchCfg.txt", "r");
+	int processCount = getLineCount();
+	FILE * file = fopen(PATH, "r");
 	if( file == NULL ){
 		printf("El archivo no existe\n");
 		exit(EXIT_FAILURE);
 	}
+	
 	char line[processCount][200];
 	struct SuicideProcessInfo suicides[processCount];
 	int i = 0;
-		
+	
 	while( fgets( line[i], sizeof line, file ) != NULL ){
 		suicides[i] = setSuicideInfo( line[i] );
 		i++;
 	}	
 	fclose( file );
 	
-	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);
-	
+	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);	
 	for (i = 0; i < processCount; i++)
 	{
 		if( strcmp( suicides[i].key, "ProcesoSui" ) == 0 ){
-			pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicides[i]);
+			pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicides[i] );
 		}
-	}
-	
+	}	
 	int returnValue;	
 	for (i = 0; i < processCount; i++)
 	{
 		pthread_join(*(threadTable + i), (void **) &returnValue);
 		fprintf( stdout, "El hilo %d termino en estado: %d\n", i, returnValue );
-	}
-	
+	}	
 	return 0;
 }
-
-//printf( "%s", line[i] );
-
-/*printf( "%s %s %s %s %s \n",*/
-/*			suicides[i].key,*/
-/*			suicides[i].id,*/
-/*			suicides[i].path,*/
-/*			suicides[i].filename,*/
-/*			suicides[i].lives);*/
-
-/*printf( "%s %s %s %s %s \n",*/
-/*			pi->key,*/
-/*			pi->id,*/
-/*			pi->path,*/
-/*			pi->filename,*/
-/*			pi->lives);*/
