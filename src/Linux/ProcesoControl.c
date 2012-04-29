@@ -15,18 +15,36 @@
 #include <errno.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <fcntl.h>           /* For O_* constants */
+#include <sys/stat.h>        /* For mode constants */
+#include <semaphore.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 //Constantes
 #define TRUE 1
 
+struct MemoriaCompartida {
+	int n; // Numero de procesos controladores
+	long int valSeq;
+	struct InfoMuerte * muertes; // Cada entrada identifica la informacion de cada proceso suicida.
+};
+
+struct InfoMuerte {
+	long int seq;
+	int nDecesos;
+};
+
 //Estructura para el manejo de la opciones del programa
 struct option long_options[] = {
 
-	{"suicidename",   required_argument, 0, 'i' },
-	{"filepath",      required_argument, 0, 'f' },
-	{"filename",      required_argument, 0, 'n' },
-	{"reencarnacion", required_argument, 0, 'r' },
-	{0, 			   0, 			  0,  0  }
+	{"suicidename",   		required_argument, 0, 'i' },
+	{"filepath",      		required_argument, 0, 'f' },
+	{"filename",      		required_argument, 0, 'n' },
+	{"reencarnacion", 		required_argument, 0, 'r' },
+	{"idMemoria", 			required_argument, 0, 'm' },
+	{"idSemaforoMemoria", 	required_argument, 0, 's' },
+	{0, 			   		0, 			    0,  0  }
 	
 };
 
@@ -73,10 +91,15 @@ int main( int argc, char *argv[] )
 	char * path;
 	char * filename;
 	int lifes = -1;
-	int pConId = ( getpid() / 2 );
+	int idSegmento;
+	char * idMemSem;
+	
+	int pConId = atoi( argv[7] );
 	
 	int c;
 	int opt_ind = 0;
+	
+	sem_t * mutex;
 	
 	while ( (c = getopt_long( argc, argv, "", long_options, &opt_ind )) != -1 )
 	{
@@ -88,6 +111,10 @@ int main( int argc, char *argv[] )
 			case 'n' : filename = optarg;
 				break;
 			case 'r' : lifes = atoi( optarg );
+				break;
+			case 'm' : idSegmento = atoi( optarg );
+				break;
+			case 's' : idMemSem = optarg;
 				break;
 			default:
 				return 0;
@@ -106,6 +133,21 @@ int main( int argc, char *argv[] )
 	{
 		lifes = -1;
 	}
+	
+	struct MemoriaCompartida * varInfo, * pointer;
+	struct InfoMuerte * muertes;
+	
+	if ((varInfo = (struct MemoriaCompartida *) shmat(idSegmento, 0, 0)) == (void *) 0)
+	{
+		fprintf(stderr, "No pudo ser asignado el segmento de memoria: %d %s\n", errno, strerror(errno));		
+	}
+	
+	pointer = varInfo;
+	pointer += sizeof(struct MemoriaCompartida);
+	muertes = (struct InfoMuerte *) pointer;
+	
+	//Se inicia el semaforo
+	mutex = sem_open( idMemSem, O_CREAT );	
 			
 	while ( TRUE )
 	{
@@ -161,6 +203,15 @@ int main( int argc, char *argv[] )
 				// Still Alive
 		 	}else if( result > 0 ){
 		 		// Dead
+		 		//Contabilidad para el DANE
+		 		sem_wait(mutex); //Entra a la region critica
+		 		
+		 		varInfo->valSeq++;
+		 		muertes[pConId].seq = varInfo->valSeq;
+		 		
+		 		sem_post(mutex); //Sale de la region critica
+		 		
+		 		muertes[pConId].nDecesos++;
 		 		if( lifes == -1 ){
 		 			fprintf(stdout, "Proceso suicida %s termino por causa %d -- Proceso Control %d, vidas restantes: Infinitas\n",
 						id, status, pConId );

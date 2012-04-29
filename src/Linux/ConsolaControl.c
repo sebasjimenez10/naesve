@@ -14,10 +14,16 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <semaphore.h>
+#include <fcntl.h>           /* For O_* constants */
+#include <sys/stat.h>        /* For mode constants */
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <errno.h>
 
 //Constantes
 #define PATH "../src/Common/ArchCfg.txt"
 #define TRUE 1
+#define SEM_NAME "/sem_valSeq"
 
 //Estructura que empaqueta la informacion del proceso suicida
 struct SuicideProcessInfo
@@ -28,6 +34,19 @@ struct SuicideProcessInfo
 	char * filename;
 	char * lifes;
 };
+
+struct MemoriaCompartida {
+	int n; // Numero de procesos controladores
+	long int valSeq;
+	struct InfoMuerte * muertes; // Cada entrada identifica la informacion de cada proceso suicida.
+};
+
+struct InfoMuerte {
+	long int seq;
+	int nDecesos;
+};
+
+sem_t * mutexValSeq;
 
 //Mutexes
 sem_t mutexOut;
@@ -48,6 +67,19 @@ void * printStderr( void * file );
 //Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
 void * hilo_de_consola( void *arg );
 
+//Funcion para pasar un entero a un string
+/*
+	Extraido de:
+	http://code.google.com/p/my-itoa/
+*/
+int my_itoa(int val, char* buf);
+
+//Id del segmento de memoria
+int idSegmento;
+
+//Lleva la cuenta de los procesos control que lanza
+int proCtrlCount = 0;
+
 //Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
 int main( ){
 
@@ -55,6 +87,38 @@ int main( ){
 	
 	sem_init( &mutexOut, 0, 1 );
 	sem_init( &mutexErr, 0, 1 );
+	mutexValSeq = sem_open( SEM_NAME, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 0);
+	sem_post( mutexValSeq );
+	key_t key = 5677;
+	struct MemoriaCompartida * varInfo, * pointer;
+	struct InfoMuerte * muertes;
+	
+	if ((idSegmento = shmget(key, (size_t )getpagesize(), IPC_CREAT | 0660 )) < 0)
+	{
+		fprintf(stderr, "Fallo al crear el segmento de memoria debido a: %d %s\n", errno, strerror(errno));
+		exit(1);
+	}
+	if ((varInfo = (struct MemoriaCompartida *) shmat(idSegmento, 0, 0)) == (void *) 0)
+	{
+		fprintf(stderr, "No pudo ser asignado el segmento de memoria: %d %s\n", errno, strerror(errno));
+		exit(1);
+	}
+	
+	varInfo->n = processCount;
+	varInfo->valSeq = 0;
+	
+	pointer = varInfo;
+	pointer += sizeof(struct MemoriaCompartida);
+	muertes = (struct InfoMuerte *) pointer;
+	
+	int j;
+	for (j = 0; j < processCount; j++)
+	{
+		muertes[j].seq = 0;
+		muertes[j].nDecesos = 0;
+	}
+	
+	varInfo->muertes = muertes;
 	
 	FILE * file = fopen(PATH, "r");
 	if( file == NULL ){
@@ -84,6 +148,17 @@ int main( ){
 	{
 		pthread_join(*(threadTable + i), (void **) &returnValue);
 		fprintf( stdout, "El hilo %d termino en estado: %d\n", i, returnValue );
+	}
+	
+	for (j = 0; j < processCount; j++)
+	{
+		printf("Estadistica del proceso control %d:\nSecuencia Final: %ld -- Decesos Totales: %d\n",
+			j, muertes[j].seq, muertes[j].nDecesos);
+	}
+	
+	if (shmctl(idSegmento, IPC_RMID, NULL) < 0) {
+		fprintf(stderr, "Fallo al borrar el segmento de memoria debido a: %d %s\n", errno, strerror(errno));
+		exit(1);
 	}	
 	return 0;
 }
@@ -179,11 +254,22 @@ void * hilo_de_consola( void *arg )
 	char filepathOpt[200] = "--filepath=";
 	char filenameOpt[200] = "--filename=";
 	char reencOpt[200] = "--reencarnacion=";
+	char idMemoria[200] = "--idMemoria=";
+	char idSemaphore[200] = "--idSemaforoMemoria=";
+	
+	char bufferID[15];
+	my_itoa( idSegmento, bufferID);
+	
+	char idProCtrl[15];
+	my_itoa( proCtrlCount, idProCtrl);
+	proCtrlCount++;
 	
 	strcat( suiOpt, pi->id );
 	strcat( filepathOpt, pi->path );
 	strcat( filenameOpt, pi->filename );
-	strcat( reencOpt, pi->lifes );
+	strcat( reencOpt, pi->lifes );	
+	strcat( idMemoria, bufferID);
+	strcat( idSemaphore, SEM_NAME );
 	
 	int pipeParentRead[2];
 	int pipeParentWrite[2];
@@ -217,7 +303,7 @@ void * hilo_de_consola( void *arg )
 		close( pipeParentError[1] );
 		
 		execl("../bin/procesoctrl",
-			"procesoctrl", suiOpt, filepathOpt, filenameOpt, reencOpt, NULL);
+			"procesoctrl", suiOpt, filepathOpt, filenameOpt, reencOpt, idMemoria, idSemaphore, idProCtrl, NULL);
 
 		fprintf( stderr, "Error cambiando imagen de proceso\n" );
 	}
@@ -245,4 +331,47 @@ void * hilo_de_consola( void *arg )
 
 	usleep(200 * 1000);
 	return 0;
+}
+
+int my_itoa(int val, char* buf)
+{
+    const unsigned int radix = 10;
+    char* p;
+    unsigned int a;      //every digit
+    int len;
+    char* b;            	//start of the digit char
+    char temp;
+    unsigned int u;
+
+    p = buf;
+
+    if (val < 0)
+    {
+        *p++ = '-';
+        val = 0 - val;
+    }
+    u = (unsigned int)val;
+    b = p;
+    do
+    {
+        a = u % radix;
+        u /= radix;
+        *p++ = a + '0';
+
+    } while (u > 0);
+
+    len = (int)(p - buf);
+    *p-- = 0;
+    //swap
+    do
+    {
+        temp = *p;
+        *p = *b;
+        *b = temp;
+        --p;
+        ++b;
+
+    } while (b < p);
+
+    return len;
 }
