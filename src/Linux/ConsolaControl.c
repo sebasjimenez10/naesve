@@ -35,15 +35,15 @@ struct SuicideProcessInfo
 	char * lifes;
 };
 
-struct MemoriaCompartida {
-	int n; // Numero de procesos controladores
-	long int valSeq;
-	struct InfoMuerte * muertes; // Cada entrada identifica la informacion de cada proceso suicida.
-};
-
 struct InfoMuerte {
 	long int seq;
 	int nDecesos;
+};
+
+struct MemoriaCompartida {
+	int n; // Numero de procesos controladores
+	long int valSeq;
+	struct InfoMuerte muertes[254]; // Cada entrada identifica la informacion de cada proceso suicida.
 };
 
 sem_t * mutexValSeq;
@@ -90,8 +90,7 @@ int main( ){
 	mutexValSeq = sem_open( SEM_NAME, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 0);
 	sem_post( mutexValSeq );
 	key_t key = 5677;
-	struct MemoriaCompartida * varInfo, * pointer;
-	struct InfoMuerte * muertes;
+	struct MemoriaCompartida * varInfo;
 	
 	if ((idSegmento = shmget(key, (size_t )getpagesize(), IPC_CREAT | 0660 )) < 0)
 	{
@@ -105,20 +104,13 @@ int main( ){
 	}
 	
 	varInfo->n = processCount;
-	varInfo->valSeq = 0;
-	
-	pointer = varInfo;
-	pointer += sizeof(struct MemoriaCompartida);
-	muertes = (struct InfoMuerte *) pointer;
-	
+	varInfo->valSeq = 0;	
 	int j;
 	for (j = 0; j < processCount; j++)
 	{
-		muertes[j].seq = 0;
-		muertes[j].nDecesos = 0;
+		varInfo->muertes[j].seq = 0;
+		varInfo->muertes[j].nDecesos = 0;
 	}
-	
-	varInfo->muertes = muertes;
 	
 	FILE * file = fopen(PATH, "r");
 	if( file == NULL ){
@@ -153,7 +145,7 @@ int main( ){
 	for (j = 0; j < processCount; j++)
 	{
 		printf("Estadistica del proceso control %d:\nSecuencia Final: %ld -- Decesos Totales: %d\n",
-			j, muertes[j].seq, muertes[j].nDecesos);
+			j, varInfo->muertes[j].seq, varInfo->muertes[j].nDecesos);
 	}
 	
 	if (shmctl(idSegmento, IPC_RMID, NULL) < 0) {

@@ -24,15 +24,15 @@
 //Constantes
 #define TRUE 1
 
-struct MemoriaCompartida {
-	int n; // Numero de procesos controladores
-	long int valSeq;
-	struct InfoMuerte * muertes; // Cada entrada identifica la informacion de cada proceso suicida.
-};
-
 struct InfoMuerte {
 	long int seq;
 	int nDecesos;
+};
+
+struct MemoriaCompartida {
+	int n; // Numero de procesos controladores
+	long int valSeq;
+	struct InfoMuerte muertes[254]; // Cada entrada identifica la informacion de cada proceso suicida.
 };
 
 //Estructura para el manejo de la opciones del programa
@@ -134,17 +134,12 @@ int main( int argc, char *argv[] )
 		lifes = -1;
 	}
 	
-	struct MemoriaCompartida * varInfo, * pointer;
-	struct InfoMuerte * muertes;
+	struct MemoriaCompartida * varInfo;
 	
 	if ((varInfo = (struct MemoriaCompartida *) shmat(idSegmento, 0, 0)) == (void *) 0)
 	{
 		fprintf(stderr, "No pudo ser asignado el segmento de memoria: %d %s\n", errno, strerror(errno));		
 	}
-	
-	pointer = varInfo;
-	pointer += sizeof(struct MemoriaCompartida);
-	muertes = (struct InfoMuerte *) pointer;
 	
 	//Se inicia el semaforo
 	mutex = sem_open( idMemSem, O_CREAT );	
@@ -207,11 +202,11 @@ int main( int argc, char *argv[] )
 		 		sem_wait(mutex); //Entra a la region critica
 		 		
 		 		varInfo->valSeq++;
-		 		muertes[pConId].seq = varInfo->valSeq;
+		 		varInfo->muertes[pConId].seq = varInfo->valSeq;
 		 		
 		 		sem_post(mutex); //Sale de la region critica
 		 		
-		 		muertes[pConId].nDecesos++;
+		 		varInfo->muertes[pConId].nDecesos++;
 		 		if( lifes == -1 ){
 		 			fprintf(stdout, "Proceso suicida %s termino por causa %d -- Proceso Control %d, vidas restantes: Infinitas\n",
 						id, status, pConId );
