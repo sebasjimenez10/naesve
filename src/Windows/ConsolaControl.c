@@ -24,7 +24,71 @@ struct SuicideProcesstartupInfo
 	char * lifes;
 };
 
-//Funcion que obtiene el numero de lineas de un archivo de texto
+//Entero para la cuenta de los procesos control
+int pctrlCount = 0;
+
+//Funcion que obtiene el numero de lineas del archivo de confg
+int getLineCount (  );
+
+//Funcion asigna los datos del proceso suicida en las estructura definida para ello
+struct SuicideProcesstartupInfo setSuicideInfo( char * line );
+
+//Hilo de consola para leer la salida de los procesos control
+DWORD WINAPI readStdout( LPVOID lpParameter );
+
+//Hilo de consola para leer el error de los procesos control
+DWORD WINAPI readStderr( LPVOID lpParameter );
+
+//Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
+DWORD WINAPI hilo_de_consola( LPVOID lpParameter );
+
+//Funcion que transforma de entero a caracteres.
+int my_itoa(int val, char* buf); /*	Extraido de: http://code.google.com/p/my-itoa/  */
+
+//Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
+int main( ){
+	int processCount = getLineCount(); //Cuenta la cantidad de procesos suicidas.
+	FILE * file;
+	char line[200][200];
+	struct SuicideProcesstartupInfo suicides[200];
+	int i = 0;
+
+	DWORD dwResultado;
+	HANDLE hThread;
+	DWORD *tablaHilos = (LPDWORD) malloc(sizeof(LPDWORD) * processCount);	
+
+	fopen_s(&file, PATH, "r");	
+
+	if( file == NULL ){
+		printf("El archivo no existe\n");
+		exit(EXIT_FAILURE);
+	}
+	while(!feof( file )){
+		while( fgets( line[i], 200, file ) != NULL && i < processCount ){ // Obtiene las lineas del archivo obtiene los datos de los suicidas.
+			if( line[i][0] != '\n' ){
+				suicides[i] = setSuicideInfo( line[i] );
+			}
+			i++;
+		}
+	}
+	fclose( file );
+	for (i = 0; i < processCount; i++) //Lanza un hilo con la informacion de cada suicida.
+	{
+		if( strcmp( suicides[i].key, "ProcesoSui" ) == 0 ){
+			 CreateThread(NULL, 0, hilo_de_consola, (LPVOID) &suicides[i], 0, (tablaHilos + i));
+		}
+	}
+	for (i = 0; i < processCount; i++) //Espera por cada hilo que lanzo
+	{
+		hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, *(tablaHilos + i));
+		WaitForSingleObject(hThread, INFINITE);
+		GetExitCodeThread(hThread, &dwResultado);
+		fprintf(stdout, "El hilo: %d termino: %ld\r\n", i, dwResultado);
+	}
+	return 0;
+}
+
+//------------------------------------------------------- DEFINICION DE FUNCIONES ----------------------------------------------
 int getLineCount (  ){
 	FILE * file;
 	int count = 0;
@@ -36,13 +100,14 @@ int getLineCount (  ){
 		exit(EXIT_FAILURE);
 	}
 	while( fgets( line, sizeof line , file ) != NULL ){
-		count++;
+		if( line[0] != '\n' ){
+			count++;
+		}
 	}
 	fclose( file );
 	return count;
 }
 
-//Funcion asigna los datos del proceso suicida en las estructura definida para ello
 struct SuicideProcesstartupInfo setSuicideInfo( char * line ){
 
 	struct SuicideProcesstartupInfo info;
@@ -88,6 +153,7 @@ DWORD WINAPI readStdout( LPVOID lpParameter ){
 	}
 	return (DWORD) 0;
 }
+
 DWORD WINAPI readStderr( LPVOID lpParameter ){
 	HANDLE pipeStderr = (HANDLE) lpParameter;
 	char buffer[200];
@@ -107,16 +173,20 @@ DWORD WINAPI readStderr( LPVOID lpParameter ){
 	return (DWORD) 0;
 }
 
-//Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
 DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	struct SuicideProcesstartupInfo * pi = (struct SuicideProcesstartupInfo *) lpParameter;
 	
+	//Para los parametros de procesos control se debe usar '=' para dar el valor de una opcion ej. --filepath=/Users/Docs/Programa
+	//Opciones del proceso control
 	char suiOpt[200] = "--suicidename=";
 	char filepathOpt[200] = "--filepath=";
 	char filenameOpt[200] = "--filename=";
 	char reencOpt[200] = "--reencarnacion=";
 	char launchArg1[200] = "procesoctrl.exe ";
 
+	char idProcCtrl[100];
+
+	//Variables para el uso de tuberias
 	SECURITY_ATTRIBUTES securAttr;
 	STARTUPINFO startupInfo;
 	PROCESS_INFORMATION processInfo;
@@ -128,11 +198,16 @@ DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	HANDLE stdoutThread;
 	HANDLE stderrThread;
 
+	my_itoa( pctrlCount, idProcCtrl );
+	pctrlCount++;
+
+	//Se concatenan las opciones con su respectiva informacion
 	strcat_s( suiOpt, 200, pi->id );
 	strcat_s( filepathOpt, 200, pi->path );
 	strcat_s( filenameOpt, 200, pi->filename );
 	strcat_s( reencOpt, 200, pi->lifes );
 
+	//Se pone todo en un solo lugar para eviarlo como lista de parametros del proceso control.
 	strcat_s( launchArg1, 200, suiOpt );
 	strcat_s( launchArg1, 200, " " );
 	strcat_s( launchArg1, 200, filepathOpt );
@@ -140,11 +215,15 @@ DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	strcat_s( launchArg1, 200, filenameOpt );
 	strcat_s( launchArg1, 200, " " );
 	strcat_s( launchArg1, 200, reencOpt );
+	strcat_s( launchArg1, 200, " " );
+	strcat_s( launchArg1, 200, idProcCtrl );
+	
 
 	ZeroMemory(&securAttr,sizeof(securAttr));
 	securAttr.nLength = sizeof(securAttr);
 	securAttr.bInheritHandle = TRUE;
 
+	//Creacion de tuberias.
 	CreatePipe(&parentReadPipe[0],&parentReadPipe[1],&securAttr,0);
 	SetHandleInformation(parentReadPipe[0], HANDLE_FLAG_INHERIT, 0);
 
@@ -162,7 +241,7 @@ DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	startupInfo.hStdError=parentErrorPipe[1];
 	startupInfo.dwFlags=STARTF_USESTDHANDLES;
 
-
+	//Creacion del proceso control
 	if (CreateProcess(NULL, launchArg1, NULL, NULL, TRUE, 0, NULL, NULL, &startupInfo, &processInfo)) {
 	
 		CloseHandle(parentReadPipe[1]);
@@ -185,44 +264,45 @@ DWORD WINAPI hilo_de_consola( LPVOID lpParameter ){
 	return 0;
 }
 
-//Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
-int main( ){
-	int processCount = getLineCount();
-	FILE * file;
-	char line[200][200];
-	struct SuicideProcesstartupInfo suicides[200];
-	int i = 0;
+int my_itoa(int val, char* buf)
+{
+    const unsigned int radix = 10;
+    char* p;
+    unsigned int a;      //every digit
+    int len;
+    char* b;            	//start of the digit char
+    char temp;
+    unsigned int u;
 
-	DWORD dwResultado;
-	HANDLE hThread;
-	DWORD *tablaHilos = (LPDWORD) malloc(sizeof(LPDWORD) * processCount);	
+    p = buf;
 
-	fopen_s(&file, PATH, "r");
-	
+    if (val < 0)
+    {
+        *p++ = '-';
+        val = 0 - val;
+    }
+    u = (unsigned int)val;
+    b = p;
+    do
+    {
+        a = u % radix;
+        u /= radix;
+        *p++ = a + '0';
 
-	if( file == NULL ){
-		printf("El archivo no existe\n");
-		exit(EXIT_FAILURE);
-	}
-	while(!feof( file )){
-		while( fgets( line[i], 200, file ) != NULL ){
-			suicides[i] = setSuicideInfo( line[i] );
-			i++;
-		}
-	}
-	fclose( file );
-	for (i = 0; i < processCount; i++)
-	{
-		if( strcmp( suicides[i].key, "ProcesoSui" ) == 0 ){
-			 CreateThread(NULL, 0, hilo_de_consola, (LPVOID) &suicides[i], 0, (tablaHilos + i));
-		}
-	}
-	for (i = 0; i < processCount; i++)
-	{
-		hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, *(tablaHilos + i));
-		WaitForSingleObject(hThread, INFINITE);
-		GetExitCodeThread(hThread, &dwResultado);
-		fprintf(stdout, "El hilo: %ld termino: %ld\r\n", *(tablaHilos +i), dwResultado);
-	}
-	return 0;
+    } while (u > 0);
+
+    len = (int)(p - buf);
+    *p-- = 0;
+    //swap
+    do
+    {
+        temp = *p;
+        *p = *b;
+        *b = temp;
+        --p;
+        ++b;
+
+    } while (b < p);
+
+    return len;
 }
