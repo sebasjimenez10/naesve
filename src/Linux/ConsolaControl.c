@@ -14,8 +14,8 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <semaphore.h>
-#include <fcntl.h>           /* For O_* constants */
-#include <sys/stat.h>        /* For mode constants */
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <errno.h>
@@ -35,20 +35,21 @@ struct SuicideProcessInfo
 	char * lifes;
 };
 
+//Estructura que almacena la informacion para la estadistica de cada proceso suicida
 struct InfoMuerte {
 	long int seq;
 	int nDecesos;
 };
 
+//Estructura para la memoria compartida
 struct MemoriaCompartida {
 	int n; // Numero de procesos controladores
 	long int valSeq;
 	struct InfoMuerte muertes[254]; // Cada entrada identifica la informacion de cada proceso suicida.
 };
 
-sem_t * mutexValSeq;
-
 //Mutexes
+sem_t * mutexValSeq;
 sem_t mutexOut;
 sem_t mutexErr;
 
@@ -68,11 +69,7 @@ void * printStderr( void * file );
 void * hilo_de_consola( void *arg );
 
 //Funcion para pasar un entero a un string
-/*
-	Extraido de:
-	http://code.google.com/p/my-itoa/
-*/
-int my_itoa(int val, char* buf);
+int my_itoa(int val, char* buf);	/*	Extraido de: http://code.google.com/p/my-itoa/  */
 
 //Id del segmento de memoria
 int idSegmento;
@@ -82,16 +79,18 @@ int proCtrlCount = 0;
 
 //Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
 int main( ){
-
-	int processCount = getLineCount();
+	int processCount = getLineCount();	//Cuenta los procesos suicidas que hay en el archivo de configuracion.
+	sem_init( &mutexOut, 0, 1 );	// Inicializa el semaforo usado para la salida.
+	sem_init( &mutexErr, 0, 1 );	// Inicializa el semaforo usado para el error.
+	mutexValSeq = sem_open( SEM_NAME,
+						O_CREAT,
+						S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+						0 ); // Crea el semaforo nombrado como un semaforo de Sinc
+	sem_post( mutexValSeq ); // Pone el semaforo nombrado en 1
+	key_t key = 5677; //Llave para el segmento de memoria compartida
+	struct MemoriaCompartida * varInfo; // Variable para la memoria compartida
 	
-	sem_init( &mutexOut, 0, 1 );
-	sem_init( &mutexErr, 0, 1 );
-	mutexValSeq = sem_open( SEM_NAME, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 0);
-	sem_post( mutexValSeq );
-	key_t key = 5677;
-	struct MemoriaCompartida * varInfo;
-	
+	//Crea la memoria compartida
 	if ((idSegmento = shmget(key, (size_t )getpagesize(), IPC_CREAT | 0660 )) < 0)
 	{
 		fprintf(stderr, "Fallo al crear el segmento de memoria debido a: %d %s\n", errno, strerror(errno));
@@ -103,6 +102,7 @@ int main( ){
 		exit(1);
 	}
 	
+	//Inicializa la memoria compartida
 	varInfo->n = processCount;
 	varInfo->valSeq = 0;	
 	int j;
@@ -112,6 +112,7 @@ int main( ){
 		varInfo->muertes[j].nDecesos = 0;
 	}
 	
+	//Abre el archivo para obtener cada linea y obtener la informacion de cada linea.
 	FILE * file = fopen(PATH, "r");
 	if( file == NULL ){
 		printf("El archivo no existe\n");
@@ -121,39 +122,49 @@ int main( ){
 	char line[processCount][200];
 	struct SuicideProcessInfo suicides[processCount];
 	int i = 0;
+	while( i < processCount ){
+		fgets( line[i], sizeof line, file );
+		if( line[i][0] != '\n' ){ // Verifica que la linea al menos contenga algo diferente de un \n (Salto de linea)
+			suicides[i] = setSuicideInfo( line[i] );
+			i++;
+		}
+	}
+	fclose( file );	
+	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);	// Tabla de hilos
 	
-	while( fgets( line[i], sizeof line, file ) != NULL ){
-		suicides[i] = setSuicideInfo( line[i] );
-		i++;
-	}	
-	fclose( file );
-	
-	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);	
+	// Lanza un hilo con la informacion de cada proceso suicida identificado.
 	for (i = 0; i < processCount; i++)
 	{
 		if( strcmp( suicides[i].key, "ProcesoSui" ) == 0 ){
 			pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicides[i] );
 		}
 	}	
+	
+	//Espera por cada hilo
 	int returnValue;	
 	for (i = 0; i < processCount; i++)
 	{
 		pthread_join(*(threadTable + i), (void **) &returnValue);
 		fprintf( stdout, "El hilo %d termino en estado: %d\n", i, returnValue );
+
 	}
 	
+	//Muestra en la terminal la informacion final de la memoria compartida
 	for (j = 0; j < processCount; j++)
 	{
 		printf("Estadistica del proceso control %d:\nSecuencia Final: %ld -- Decesos Totales: %d\n",
 			j, varInfo->muertes[j].seq, varInfo->muertes[j].nDecesos);
 	}
 	
+	//Libera el segmento de memoria compartida
 	if (shmctl(idSegmento, IPC_RMID, NULL) < 0) {
 		fprintf(stderr, "Fallo al borrar el segmento de memoria debido a: %d %s\n", errno, strerror(errno));
 		exit(1);
 	}	
 	return 0;
 }
+
+//-------------------------------------------------------- DEFINICION DE FUNCIONES -----------------------------------------------------
 
 int getLineCount (  )
 {
@@ -165,7 +176,10 @@ int getLineCount (  )
 	int count = 0;
 	char line[200];
 	while( fgets( line, sizeof(line), file ) != NULL ){
-		count++;
+		if ( line[0] != '\n' )
+		{
+			count++;
+		}
 	}
 	fclose( file );	
 	return count;
@@ -186,7 +200,6 @@ struct SuicideProcessInfo setSuicideInfo( char * line )
 		token = strtok( NULL, delim );
 		index++;
 	}	
-	
 	info.key = tokensArray[0];
 	info.id = tokensArray[1];
 	info.path = strcat( tokensArray[2], "/" );
