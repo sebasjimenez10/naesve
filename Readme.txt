@@ -20,6 +20,8 @@ Este procedimiento se debe hacer para la ejecucion en ambos sistemas operativos.
 
 NOTA: Para saber como realizar la ejecucion mas detalladamente, abrir el archivo Install
 
-NOTA: Se debe tener en cuenta que el archivo de configuracion no debe contener lineas vacias ('\n')
+NOTA: En Windows si se desea ejecutar unicamente el procesoctrl se debe OBLIGATORIAMENTE pasarle los argumentos con un '=' despues de la opcion.
+Ej. --filepath=user/usuario_1/programas
+No se puede poner un espacio en lugar del igual.
 
 NOTA: En el archivo de configuracion, el path del proceso suicida, no debe contener espacios ('\s')
