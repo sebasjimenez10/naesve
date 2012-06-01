@@ -31,39 +31,10 @@ struct option long_options[] = {
 };
 
 //Hilo que imprime del descriptor de archivo que le asignen al error estandar
-void * printStderr( void * file ){
-	
-	FILE * err;
-	int fid = (int)file;
-	while( TRUE ){
-		err = fdopen (fid, "r");
-		if( err == NULL ) break;
-		char stringErr[100]; //Buffer Err
-		while (fgets(stringErr, 100, err) != NULL) {
-			fprintf(stderr, "%s", stringErr);
-		}
-		fflush( stderr );
-		fclose( err );
-	}
-	return 0;
-}
+void * printStderr( void * file );
 
 //Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
-void * printStdout( void * file ){
-	FILE * out;
-	int fid = (int)file;
-	while( TRUE ){
-		out = fdopen (fid, "r");
-		if( out == NULL ) break;
-		char stringOut[100]; //Buffer Err
-		while (fgets(stringOut, 100, out) != NULL) {
-			fprintf(stdout, "%s", stringOut);
-		}
-		fflush( stdout );
-		fclose( out );
-	}
-	return 0;
-}
+void * printStdout( void * file );
 
 //Funcion principal encargada de lanzar el proceso suicida y hacerlo revivir tambien lee de las salidas estandar stdout, stderr
 int main( int argc, char *argv[] )
@@ -73,7 +44,7 @@ int main( int argc, char *argv[] )
 	char * path;
 	char * filename;
 	int lifes = -1;
-	int pConId = ( getpid() / 2 );
+	int pConId = atoi( argv[5] );
 	
 	int c;
 	int opt_ind = 0;
@@ -188,6 +159,39 @@ int main( int argc, char *argv[] )
 			//Continue
 			lifes--;
 		}
+	}
+	return 0;
+}
+
+void * printStderr( void * file ){
+	
+	FILE * err;
+	int fid = (int)file;
+	while( TRUE ){
+		err = fdopen (fid, "r");
+		if( err == NULL ) break;
+		char stringErr[100]; //Buffer Err
+		while (fgets(stringErr, 100, err) != NULL) {
+			fprintf(stderr, "%s", stringErr);
+		}
+		fflush( stderr );
+		fclose( err );
+	}
+	return 0;
+}
+
+void * printStdout( void * file ){
+	FILE * out;
+	int fid = (int)file;
+	while( TRUE ){
+		out = fdopen (fid, "r");
+		if( out == NULL ) break;
+		char stringOut[100]; //Buffer Err
+		while (fgets(stringOut, 100, out) != NULL) {
+			fprintf(stdout, "%s", stringOut);
+		}
+		fflush( stdout );
+		fclose( out );
 	}
 	return 0;
 }
