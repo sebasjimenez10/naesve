@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+// #include <ctype.h> Usado para operaciones con caracteres
 
 //Constantes
 #define PATH "../src/Common/ArchCfg.txt"
@@ -64,9 +65,12 @@ int main( ){
 	struct SuicideProcessInfo suicides[processCount];
 	int i = 0;
 	
-	while( fgets( line[i], sizeof line, file ) != NULL ){
-		suicides[i] = setSuicideInfo( line[i] );
-		i++;
+	while( i < processCount ){
+		fgets( line[i], sizeof line, file );
+		if( line[i][0] != '\n' ){ // Verifica que la linea al menos contenga algo diferente de un \n (Salto de linea)
+			suicides[i] = setSuicideInfo( line[i] );
+			i++;
+		}
 	}	
 	fclose( file );
 	
@@ -175,7 +179,10 @@ int getLineCount (  ){
 	int count = 0;
 	char line[200];
 	while( fgets( line, sizeof(line), file ) != NULL ){
-		count++;
+		if ( line[0] != '\n' )
+		{
+			count++;
+		}
 	}
 	fclose( file );	
 	return count;

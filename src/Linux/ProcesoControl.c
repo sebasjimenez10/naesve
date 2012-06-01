@@ -14,7 +14,6 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <getopt.h>
-#include <ctype.h>
 
 //Constantes
 #define TRUE 1
