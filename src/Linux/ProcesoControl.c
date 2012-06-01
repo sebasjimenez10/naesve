@@ -17,6 +17,7 @@
 
 //Constantes
 #define TRUE 1
+#define TAMANO  1024
 
 //Estructura para el manejo de la opciones del programa
 struct option long_options[] = {
@@ -30,10 +31,16 @@ struct option long_options[] = {
 };
 
 //Hilo que imprime del descriptor de archivo que le asignen al error estandar
-void * printStderr( void * file );
+//void * printStderr( void * file );
 
 //Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
-void * printStdout( void * file );
+//void * printStdout( void * file );
+
+//
+int leerEscribir(fd_set* set, int in, int out);
+
+//
+int validarError(fd_set* set, int in);
 
 //Funcion principal encargada de lanzar el proceso suicida y hacerlo revivir tambien lee de las salidas estandar stdout, stderr
 int main( int argc, char *argv[] )
@@ -79,6 +86,9 @@ int main( int argc, char *argv[] )
 			
 	while ( TRUE )
 	{
+		fd_set readfds, execptfds; //Multiplex
+		int nFds; //Multiplex
+		
 		//Pipes
 		int pipeParentRead[2];
 		int pipeParentWrite[2];
@@ -119,16 +129,47 @@ int main( int argc, char *argv[] )
 		//FILE * in = fdopen(pipeParentWrite[1], "w");
 		close( pipeParentError[1] );
 		
-		pthread_t threadOut, threadErr;
-		int retOut, retErr;
-		pthread_create( &threadErr, NULL, printStderr, (void *) pipeParentError[0] );
-		pthread_create( &threadOut, NULL, printStdout, (void *) pipeParentRead[0] );
+/*		pthread_t threadOut, threadErr;*/
+/*		int retOut, retErr;*/
+/*		pthread_create( &threadErr, NULL, printStderr, (void *) pipeParentError[0] );*/
+/*		pthread_create( &threadOut, NULL, printStdout, (void *) pipeParentRead[0] );*/
 		
 		while(TRUE){
 			int status;
 			pid_t result = waitpid(pid, &status, WNOHANG);
 			if (result == 0){
 				// Still Alive
+				FD_ZERO(&readfds);
+				FD_ZERO(&execptfds);
+
+				FD_SET(pipeParentRead[0], &readfds);
+				FD_SET(pipeParentError[0], &readfds);
+				FD_SET(pipeParentRead[0], &execptfds);
+				FD_SET(pipeParentError[0], &execptfds);
+
+				nFds = select((int) pipeParentError[0] + 1, &readfds, NULL, &execptfds, NULL);
+			
+				if (nFds > 0) {
+					if (leerEscribir(&readfds, pipeParentRead[0], 0) < 0 && errno != 0) {
+						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						exit(1);
+					}
+
+					if (leerEscribir(&readfds, pipeParentError[0], 2) < 0 && errno != 0) {
+						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						exit(1);
+					}
+
+					if (validarError(&execptfds, pipeParentRead[0]) < 0) {
+						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						exit(1);
+					}
+
+					if (validarError(&execptfds, pipeParentError[0]) < 0) {
+						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						exit(1);
+					}	
+				}
 		 	}else if( result > 0 ){
 		 		// Dead
 		 		if( lifes == -1 ){
@@ -147,8 +188,8 @@ int main( int argc, char *argv[] )
 		close(pipeParentWrite[1]);
 		close(pipeParentError[0]);
 
-		pthread_join( threadErr, (void **) &retErr );
-		pthread_join( threadOut, (void **) &retOut );
+/*		pthread_join( threadErr, (void **) &retErr );*/
+/*		pthread_join( threadOut, (void **) &retOut );*/
 		
 		if( lifes == 1 )	
 		{
@@ -162,35 +203,73 @@ int main( int argc, char *argv[] )
 	return 0;
 }
 
-void * printStderr( void * file ){
-	
-	FILE * err;
-	int fid = (int)file;
-	while( TRUE ){
-		err = fdopen (fid, "r");
-		if( err == NULL ) break;
-		char stringErr[100]; //Buffer Err
-		while (fgets(stringErr, 100, err) != NULL) {
-			fprintf(stderr, "%s", stringErr);
+int leerEscribir(fd_set* set, int in, int out) {
+	static char *buffer = NULL;
+	int nCLeidos;
+/*	FILE *outFd;*/
+/*	outFd = fdopen( out, "w" );*/
+
+	if (!buffer) {
+		buffer = (char *) malloc(TAMANO);
+		if (!buffer) {
+	 		return -1;
 		}
-		fflush( stderr );
-		fclose( err );
+	}
+	if (FD_ISSET(in, set)) {
+		do {
+			nCLeidos = read(in, buffer, TAMANO);
+			if (nCLeidos > 0) {
+				if (write(out, buffer, nCLeidos) < 0) {
+					return -1;
+				}
+/*				fflush(outFd);*/
+			} else 
+				return -1;
+		} while (nCLeidos == TAMANO);
 	}
 	return 0;
 }
 
-void * printStdout( void * file ){
-	FILE * out;
-	int fid = (int)file;
-	while( TRUE ){
-		out = fdopen (fid, "r");
-		if( out == NULL ) break;
-		char stringOut[100]; //Buffer Err
-		while (fgets(stringOut, 100, out) != NULL) {
-			fprintf(stdout, "%s", stringOut);
-		}
-		fflush( stdout );
-		fclose( out );
-	}
-	return 0;
+int validarError(fd_set* set, int in) {
+  char buffer[1];
+
+  if (FD_ISSET(in, set)) {
+    if (read(in, buffer, 1) < 0) {
+      return -1;
+    }
+  }
+  return 0;
 }
+
+/*void * printStderr( void * file ){*/
+/*	*/
+/*	FILE * err;*/
+/*	int fid = (int)file;*/
+/*	while( TRUE ){*/
+/*		err = fdopen (fid, "r");*/
+/*		if( err == NULL ) break;*/
+/*		char stringErr[100]; //Buffer Err*/
+/*		while (fgets(stringErr, 100, err) != NULL) {*/
+/*			fprintf(stderr, "%s", stringErr);*/
+/*		}*/
+/*		fflush( stderr );*/
+/*		fclose( err );*/
+/*	}*/
+/*	return 0;*/
+/*}*/
+
+/*void * printStdout( void * file ){*/
+/*	FILE * out;*/
+/*	int fid = (int)file;*/
+/*	while( TRUE ){*/
+/*		out = fdopen (fid, "r");*/
+/*		if( out == NULL ) break;*/
+/*		char stringOut[100]; //Buffer Err*/
+/*		while (fgets(stringOut, 100, out) != NULL) {*/
+/*			fprintf(stdout, "%s", stringOut);*/
+/*		}*/
+/*		fflush( stdout );*/
+/*		fclose( out );*/
+/*	}*/
+/*	return 0;*/
+/*}*/
