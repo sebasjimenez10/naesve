@@ -212,7 +212,6 @@ void * hilo_de_consola( void *arg )
 			sem_post( &mutexTerminal );		
 	 	}else if( result > 0 ){
 	 		// Dead
-	 		//fflush(stdout);
 	 		break;
 	 	}
 	}
