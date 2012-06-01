@@ -7,21 +7,17 @@ La practica se realizo en el lenguaje de programacion C.
 
 Estructura:
 - En la carpeta bin se encuentran los archivos ejecutables
-- En la carpeta src se encuentran las carpetas Windows y Linux con el codigo correspondiente y la capeta Common que contiene el archivo de configuracion.
+- En la carpeta src se encuentran las carpetas Linux con el codigo correspondiente y la capeta Common que contiene el archivo de configuracion.
 - Tambien se encuentran los Makefile de ambos sistemas operativos para la compilacion. 
 
 Compilacion:
-Para la compilacion de todos los archivos fuentes se debe ejecutar el Makefile del sistema operativos que se desea ejecutar y este sera el encargado de generar los archivos ejecutables y guardarlos en la carpeta bin. 
+Para la compilacion de todos los archivos fuentes se debe ejecutar el Makefile y este sera el encargado de generar los archivos ejecutables y guardarlos en la carpeta bin. 
 
 Ejecucion:
 Para realizar la ejecucion, se debe ingresar desde la linea de comandos a la carpeta bin y ejecutar la consola control
 Este procedimiento se debe hacer para la ejecucion en ambos sistemas operativos. 
 
 
-NOTA: Para saber como realizar la ejecucion mas detalladamente, abrir el archivo Install
-
-NOTA: En Windows si se desea ejecutar unicamente el procesoctrl se debe OBLIGATORIAMENTE pasarle los argumentos con un '=' despues de la opcion.
-Ej. --filepath=user/usuario_1/programas
-No se puede poner un espacio en lugar del igual.
+NOTA: Para saber como realizar la ejecucion mas detalladamente, abrir el archivo Install.
 
 NOTA: En el archivo de configuracion, el path del proceso suicida, no debe contener espacios ('\s')

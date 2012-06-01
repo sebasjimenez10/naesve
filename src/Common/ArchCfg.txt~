@@ -1,2 +1,0 @@
-ProcesoSui unoSuicida { ../bin :: ProcesoSuicida 120 }
-ProcesoSui segundoSuicida { ../bin :: ProcesoSuicida 80 }

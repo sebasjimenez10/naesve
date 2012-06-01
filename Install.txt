@@ -1,24 +1,9 @@
 Para la instalacion y ejecucion del proyecto es necesario tener previamente instalado:
-- Windows 32 bits 
 - Ubuntu en su ultima version
-- Visual Studio Command Prompt
-
-Windows:
-1. Descargar el contenido del repositorio Naesve donde se encuentra la implementacion del proyecto en Windows y en Linux.
-https://bitbucket.org/ncanoes/naesve
-
-2. Descomprimir en un mismo directorio
-
-3. Abrir la consola de Visual Studio 2010 e ir hasta la carpeta donde se descomprimio la practica
-
-4. Ejecutar el Make File con el comando: nmake -f MakeWindows.mk
-
-5. Ingresar a la carpeta bin con el comando: cd /src/bin
-
-6. Ejecutar el archivo consola de control con el comando: conctrl.exe
 
 
 Linux.
+
 1. Descargar el contenido del repositorio Naesve donde se encuentra la implementacion del proyecto en Windows y en Linux.
 https://bitbucket.org/ncanoes/naesve
 
