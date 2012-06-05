@@ -1,2 +1,2 @@
-ProcesoSui unoSuicida { . :: ProcesoSuicida 120 }
-ProcesoSui segundoSuicida { . :: ProcesoSuicida 80 }
+ProcesoSui unoSuicida { /home/menes/Documents/suicidas :: ProcesoSuicida 120 }
+ProcesoSui segSuicida { /home/menes/Documents/suicidas :: ProcesoSuicida 80 }

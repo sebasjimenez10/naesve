@@ -1,7 +1,17 @@
 
-/*
+/*	
+	Practica de Sistemas Operativos 2012-1
+	
+	Natalia Cano Escobar.
+	Sebastian Jimenez Velez.	
+	
+	Descripcion:
+	La Consola de Control es la encargada de crear todos los Procesos de Control
+	que se encargan de monitorear y de "revivir" los Procesos Suicidas.
+	Por medio de hilos de consola, esta, crea los Procesos de Control.
+	
 	Consola de Control
-	Name: ConsolaControl.c
+	Nombre: ConsolaControl.c
 */
 
 //Archivos de encabezado
@@ -10,17 +20,20 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <limits.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <errno.h>
 #include <semaphore.h>
-// #include <ctype.h> Usado para operaciones con caracteres
 
 //Constantes
 #define PATH "../src/Common/ArchCfg.txt"
 #define TRUE 1
 #define TAMANO  1024
+
+//Para el parse del archivo de configuracion
+extern int processCount;
+extern int yyparse();
+extern FILE * yyin;
 
 //Variable global para llevar la cuenta de los procesos control.
 int pCtrlCount = 0;
@@ -31,18 +44,31 @@ sem_t mutexTerminal;
 //Estructura que empaqueta la informacion del proceso suicida
 struct SuicideProcessInfo
 {
-	char * key;
 	char * id;
 	char * path;
 	char * filename;
 	char * lifes;
 };
 
-//Funcion que obtiene el numero de lineas de un archivo de texto
-int getLineCount (  );
+//Aqui se depositan los suicidas que va reconociendo el parser
+struct SuicideProcessInfo suicidas[1024];
 
-//Funcion asigna los datos del proceso suicida en las estructura definida para ello
-struct SuicideProcessInfo setSuicideInfo( char * line );
+//Cuenta para el vector de suicidas
+int count = 0;
+
+void * getTokens( char * id, char * path, char * filename, char * lifes ){
+	struct SuicideProcessInfo suicida;
+	
+	suicida.id = id;
+	strcat( path, "/");
+	suicida.path = path;
+	suicida.filename = filename;
+	suicida.lifes = lifes;	
+	suicidas[count] = suicida;	
+	count++;
+	
+	return NULL;
+}
 
 //Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
 //void * printStdout( void * file );
@@ -57,7 +83,7 @@ int leerEscribir(fd_set* set, int in, int out);
 int validarError(fd_set* set, int in);
 
 //Funcion que transforma un int a un char
-//Extraida de code.google.com/my_itoa/
+//Extraida de http://code.google.com/my_itoa/
 int my_itoa(int val, char* buf);
 
 //Hilo de consola que lanza el proceso control con la info del proceso suicida que debe controlar
@@ -65,34 +91,25 @@ void * hilo_de_consola( void *arg );
 
 //Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
 int main( ){
-
-	int processCount = getLineCount();
-	FILE * file = fopen(PATH, "r");
-	sem_init( &mutexTerminal, 0, 1 );
-	if( file == NULL ){
-		printf("El archivo no existe\n");
-		exit(EXIT_FAILURE);
+	//Parse
+	yyin = fopen( PATH, "r" );
+	if( yyin == NULL ){
+		printf( "Error al abrir el archivo de configuracion.\n" );
+		exit(1);
 	}
+	int parseStatus = yyparse();
+	if( parseStatus == 1 ){
+		//printf( "Error de sintaxis\n" );
+		exit(1);
+	}
+	//Init
+	sem_init( &mutexTerminal, 0, 1 );	
 	
-	char line[processCount][200];
-	struct SuicideProcessInfo suicides[processCount];
-	int i = 0;
-	
-	while( i < processCount ){
-		fgets( line[i], sizeof line, file );
-		if( line[i][0] != '\n' ){ // Verifica que la linea al menos contenga algo diferente de un \n (Salto de linea)
-			suicides[i] = setSuicideInfo( line[i] );
-			i++;
-		}
-	}	
-	fclose( file );
-	
+	int i = 0;	
 	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);	
 	for (i = 0; i < processCount; i++)
 	{
-		if( strcmp( suicides[i].key, "ProcesoSui" ) == 0 ){
-			pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicides[i] );
-		}
+		pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicidas[i] );
 	}	
 	int returnValue;	
 	for (i = 0; i < processCount; i++)
@@ -189,7 +206,7 @@ void * hilo_de_consola( void *arg )
 			
 			sem_wait( &mutexTerminal );
 			if (nFds > 0) {
-				if (leerEscribir(&readfds, pipeParentRead[0], 0) < 0 && errno != 0) {
+				if (leerEscribir(&readfds, pipeParentRead[0], 1) < 0 && errno != 0) {
 					fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
 					exit(1);
 				}
@@ -243,30 +260,6 @@ int getLineCount (  ){
 	}
 	fclose( file );	
 	return count;
-}
-
-struct SuicideProcessInfo setSuicideInfo( char * line ){
-	struct SuicideProcessInfo info;
-	char * tokensArray[5];
-	char * delim = " {}:";
-	char * token;
-	
-	int index = 0;
-	token = strtok( line, delim );
-	while ( token != NULL )
-	{
-		tokensArray[index] = token;
-		token = strtok( NULL, delim );
-		index++;
-	}	
-	
-	info.key = tokensArray[0];
-	info.id = tokensArray[1];
-	info.path = strcat( tokensArray[2], "/" );
-	info.filename = tokensArray[3];
-	info.lifes = tokensArray[4];
-	
-	return info;
 }
 
 int my_itoa(int val, char* buf)
@@ -329,13 +322,11 @@ int leerEscribir(fd_set* set, int in, int out) {
 
       nCLeidos = read(in, buffer, TAMANO);
       if (nCLeidos > 0) {
-	if (write(out, buffer, nCLeidos) < 0) {
-	  return -1;
-	}
-      }
-      else 
-	return -1;
-
+		if (write(out, buffer, nCLeidos) < 0) {
+		  return -1;
+		}
+      } else 
+		return -1;
     } while (nCLeidos == TAMANO);
   }
   return 0;

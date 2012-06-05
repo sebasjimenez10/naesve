@@ -1,5 +1,16 @@
 
 /*
+	Practica de Sistemas Operativos 2012-1
+	
+	Natalia Cano Escobar.
+	Sebastian Jimenez Velez.
+	
+	Descripcion:
+	El Proceso de Control es el que se encarga de "revivir" a los Procesos Suicidas
+	que tienen una cantidad de vidas establecida.
+	Esta cantidad puede ser un entero positivo o cero (Infinito).
+		* Lo anterior se define en el archivo de configuracion.
+
 	Proceso Control
 	Name: ProcesoControl.c
 */
@@ -150,23 +161,23 @@ int main( int argc, char *argv[] )
 				nFds = select((int) pipeParentError[0] + 1, &readfds, NULL, &execptfds, NULL);
 			
 				if (nFds > 0) {
-					if (leerEscribir(&readfds, pipeParentRead[0], 0) < 0 && errno != 0) {
-						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+					if (leerEscribir(&readfds, pipeParentRead[0], 1) < 0 && errno != 0) {
+						fprintf(stderr, "Error en la lectura pipeRead: %d %s\n", errno, strerror(errno));
 						exit(1);
 					}
 
 					if (leerEscribir(&readfds, pipeParentError[0], 2) < 0 && errno != 0) {
-						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						fprintf(stderr, "Error en la lectura pipeErr: %d %s\n", errno, strerror(errno));
 						exit(1);
 					}
 
 					if (validarError(&execptfds, pipeParentRead[0]) < 0) {
-						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						fprintf(stderr, "Error en la lectura validarError: %d %s\n", errno, strerror(errno));
 						exit(1);
 					}
 
 					if (validarError(&execptfds, pipeParentError[0]) < 0) {
-						fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
+						fprintf(stderr, "Error en la lectura validarError: %d %s\n", errno, strerror(errno));
 						exit(1);
 					}	
 				}
@@ -206,8 +217,6 @@ int main( int argc, char *argv[] )
 int leerEscribir(fd_set* set, int in, int out) {
 	static char *buffer = NULL;
 	int nCLeidos;
-/*	FILE *outFd;*/
-/*	outFd = fdopen( out, "w" );*/
 
 	if (!buffer) {
 		buffer = (char *) malloc(TAMANO);
@@ -222,7 +231,6 @@ int leerEscribir(fd_set* set, int in, int out) {
 				if (write(out, buffer, nCLeidos) < 0) {
 					return -1;
 				}
-/*				fflush(outFd);*/
 			} else 
 				return -1;
 		} while (nCLeidos == TAMANO);

@@ -20,10 +20,8 @@ main(int argc, char *argv[], char *env[]) {
 	int value2 = 1;
 	
 /*	fprintf( stderr, "Salida error del suicida\n" );*/
-/*	fflush( stderr );*/
-
 /*	fprintf( stdout, "Salida estandar del suicida\n" );*/
-/*	fflush( stdout );*/
+
 	
 	/* Genera un numero aleatorio para determinar cual
 	sera la causa del suicidio */
