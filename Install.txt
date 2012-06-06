@@ -1,19 +1,21 @@
 Para la instalacion y ejecucion del proyecto es necesario tener previamente instalado:
 - Ubuntu en su ultima version
 
-
-Linux.
-
-1. Descargar el contenido del repositorio Naesve donde se encuentra la implementacion del proyecto en Windows y en Linux.
+1. Descargar el contenido del repositorio Naesve donde se encuentra la implementacion del proyecto en Linux.
 https://bitbucket.org/ncanoes/naesve
 
-2. Descomprimir la carpeta en un mismo directorio
+2. Instalar el generador del parser Bison, ejecutar: sudo apt-get install bison
 
-3. Abrir la consola e ir hasta la carpeta donde se descomprimio la practica
+3. Instalar el generador del lexer Flex, ejecutar: sudo apt-get install flex
 
-4. Ejecutar el Make file con el comando: make -f MakeLinux
+4. Descomprimir el archivo descargado del repositorio en una carpeta.
 
-5. Ingresar a la carpeta bin con el comando: cd /src/bin
+5. Abrir la consola e ir hasta la carpeta donde se descomprimio el contenido del archivo descargado, por medio del comando "cd"
 
-6. Ejecutar el archivo consola de control con el comando: ./conctrl
+6. Ejecutar el Makefile con el comando: make -f MakeLinux
 
+7. Ingresar a la carpeta bin con el comando: cd bin
+
+8. Ejecutar el archivo consola de control con el comando: ./conctrl
+
+9. Si se desea cambiar el archivo de configuracion ir a la carpeta src/Common, abrirlo y modificarlo
