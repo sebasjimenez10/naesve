@@ -30,7 +30,7 @@
 #define TRUE 1
 #define TAMANO  1024
 
-//Para el parse del archivo de configuracion
+//Para la validacion del archivo de configuracion (Parsing)
 extern int processCount;
 extern int yyparse();
 extern FILE * yyin;
@@ -56,19 +56,8 @@ struct SuicideProcessInfo suicidas[1024];
 //Cuenta para el vector de suicidas
 int count = 0;
 
-void * getTokens( char * id, char * path, char * filename, char * lifes ){
-	struct SuicideProcessInfo suicida;
-	
-	suicida.id = id;
-	strcat( path, "/");
-	suicida.path = path;
-	suicida.filename = filename;
-	suicida.lifes = lifes;	
-	suicidas[count] = suicida;	
-	count++;
-	
-	return NULL;
-}
+//Funcion utilizada desde el parser cuando se termina de validar un suicida, esta regresa los tokens.
+void * getTokens( char * id, char * path, char * filename, char * lifes );
 
 //Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
 //void * printStdout( void * file );
@@ -76,7 +65,7 @@ void * getTokens( char * id, char * path, char * filename, char * lifes ){
 //Hilo que imprime del descriptor de archivo que le asignen al error estandar
 //void * printStderr( void * file );
 
-//Funcion para leer y escribir multiplexado.
+//Funcion para leer y escribir de manera multiplexada
 int leerEscribir(fd_set* set, int in, int out);
 
 //Funcion para validar el set de donde se ha leido
@@ -91,26 +80,28 @@ void * hilo_de_consola( void *arg );
 
 //Funcion principal leer el archivos de configuracion, lanzar los hilos y leer de las salidas estandar stdout, stdout
 int main( ){
-	//Parse
+	//Se realiza la validacion del archivo de configuracion y se obtienen los tokens
 	yyin = fopen( PATH, "r" );
 	if( yyin == NULL ){
 		printf( "Error al abrir el archivo de configuracion.\n" );
 		exit(1);
 	}
-	int parseStatus = yyparse();
-	if( parseStatus == 1 ){
-		//printf( "Error de sintaxis\n" );
+	int parseStatus = yyparse(); //Llama a la funcion que valida el archivo y almacena el resultado de la validacion en in int
+	if( parseStatus == 1 ){ //Si hubo un error no se puede continuar y se termina el programa.
+		//El archivo contiene errores de sintaxis
 		exit(1);
 	}
-	//Init
-	sem_init( &mutexTerminal, 0, 1 );	
+	//Se inicia la consola control
+	sem_init( &mutexTerminal, 0, 1 ); //Semaforo utilizado para controlar la salida combinada en la terminal
 	
+	//Lanzamiento de los hilos de consola que inician los procesos control
 	int i = 0;	
 	pthread_t *threadTable = (pthread_t *) malloc(sizeof(pthread_t) * processCount);	
 	for (i = 0; i < processCount; i++)
 	{
 		pthread_create((threadTable + i), NULL, hilo_de_consola, (void *) &suicidas[i] );
 	}	
+	//Se espera por cada hilo lanzado
 	int returnValue;	
 	for (i = 0; i < processCount; i++)
 	{
@@ -122,44 +113,53 @@ int main( ){
 
 void * hilo_de_consola( void *arg )
 {
+	//Se recibe la estructura pasada como argumento
 	struct SuicideProcessInfo * pi = (struct SuicideProcessInfo *) arg;
 	
-	fd_set readfds, execptfds; //Multiplex
-	int nFds; //Multiplex
+	fd_set readfds, execptfds; //Conjuntos para los descriptores a leer (Multiplex)
+	int nFds; //Variable que almacena el numero de descriptores de archivo que se pueden leer
 	
+	//Creacion de las opciones
 	char suiOpt[200] = "--suicidename=";
 	char filepathOpt[200] = "--filepath=";
 	char filenameOpt[200] = "--filename=";
 	char reencOpt[200] = "--reencarnacion=";
 	char PctrlId[15];
 	
+	//Concatenacion de las opciones con los parametros de los suicidas
 	strcat( suiOpt, pi->id );
 	strcat( filepathOpt, pi->path );
 	strcat( filenameOpt, pi->filename );
 	strcat( reencOpt, pi->lifes );
 	
+	//Por medio de la funcion my_itoa se convierte el entero id del proceso control a char para pasarlo por parametro
 	my_itoa( pCtrlCount, PctrlId );
 	pCtrlCount++;
 	
+	//Declaracion de las tuberias
 	int pipeParentRead[2];
 	int pipeParentWrite[2];
 	int pipeParentError[2];
 	
+	//Se inician las tuberias, si alguna no pudo ser creada el programa termina
 	if( pipe( pipeParentRead ) || pipe( pipeParentWrite ) || pipe( pipeParentError ) ){
 		/* Algo malo ocurrio */
 	    printf("Error: La tuberia no pudo ser creada");
 	    exit(1);
 	}
 	
+	//Declaracion y creacion del hijo (Proceso Control)
 	pid_t pid;	
 	pid = fork();
 	
+	//Se verifica que el hijo se haya podido crear
 	if( pid == (pid_t)(-1) )
 	{
 		fprintf( stdout, "El hijo del hilo no se pudo crear\n" );
 		pthread_exit(NULL);
 	}else if ( pid == 0 )
-	{	
+	{
+		//Se cambian los descriptores de archivo del hijo
 		dup2( pipeParentWrite[0],0 );
 		close( pipeParentWrite[0] );
 		close( pipeParentWrite[1] );
@@ -172,16 +172,19 @@ void * hilo_de_consola( void *arg )
 		close( pipeParentError[0] );
 		close( pipeParentError[1] );
 		
+		//Se cambia la imagen del proceso del hijo
 		execl("procesoctrl",
 			"procesoctrl", suiOpt, filepathOpt, filenameOpt, reencOpt, PctrlId, NULL);
-
+		
+		//Si este codigo se ejecuta hubo un error cambiando la imagen
 		fprintf( stderr, "Error cambiando imagen de proceso\n" );
 	}
-	
+	//Codigo del padre
+	//Se cierran los extremos de las tuberias que no se van a utilizar por el padre
 	close( pipeParentRead[1] );	
 	close( pipeParentWrite[0] );	
 	/* Para esta primera entrega no esta definido el uso, pero si su declaracion */
-	//FILE * in = fdopen(pipeParentWrite[1], "w");	
+	//FILE * in = fdopen(pipeParentWrite[1], "w");
 	close( pipeParentError[1] );
 	
 /*	pthread_t threadOut, threadErr;*/
@@ -189,22 +192,29 @@ void * hilo_de_consola( void *arg )
 /*	pthread_create( &threadOut, NULL, printStdout, (void *) pipeParentRead[0] );*/
 /*	pthread_create( &threadErr, NULL, printStderr, (void *) pipeParentError[0] );*/
 	
+	//Se verifica el estado del hijo hasta que este muera, para leer lo que este escribiendo en la salida o el error
 	while(TRUE){
 		int status;
 		pid_t result = waitpid(pid, &status, WNOHANG);
 		if (result == 0){
-			// Still Alive			
+			// El hijo todavia esta vivo
+			//Se limpian los conjuntos			
 			FD_ZERO(&readfds);
 			FD_ZERO(&execptfds);
-
+			
+			//Se agregan los extremos correspondientes de las tuberias a los conjuntos de descriptores
 			FD_SET(pipeParentRead[0], &readfds);
 			FD_SET(pipeParentError[0], &readfds);
 			FD_SET(pipeParentRead[0], &execptfds);
 			FD_SET(pipeParentError[0], &execptfds);
 
+			//Obtiene la cantidad de descriptores de los cuales se puede leer
 			nFds = select((int) pipeParentError[0] + 1, &readfds, NULL, &execptfds, NULL);
 			
-			sem_wait( &mutexTerminal );
+			//Para solucionar la salida combinada en la consola se utiliza un semaforo mutex
+			sem_wait( &mutexTerminal ); // Ingreso a la zona critica
+			
+			//Si hay algun descriptor disponible para la operacion de E/S, esta se realiza
 			if (nFds > 0) {
 				if (leerEscribir(&readfds, pipeParentRead[0], 1) < 0 && errno != 0) {
 					fprintf(stderr, "Error en la lectura: %d %s\n", errno, strerror(errno));
@@ -228,11 +238,12 @@ void * hilo_de_consola( void *arg )
 			}
 			sem_post( &mutexTerminal );		
 	 	}else if( result > 0 ){
-	 		// Dead
+	 		// El hijo ha muerto
 	 		break;
 	 	}
 	}
 	
+	//Se cierran los extremos de las tuberias usadas por el padre
 	close(pipeParentRead[0]);
 	close(pipeParentWrite[1]);
 	close(pipeParentError[0]);
@@ -244,22 +255,18 @@ void * hilo_de_consola( void *arg )
 	return 0;
 }
 
-int getLineCount (  ){
-	FILE * file = fopen(PATH, "r");
-	if( file == NULL ){
-		printf("El archivo no existe\n");
-		exit(EXIT_FAILURE);
-	}
-	int count = 0;
-	char line[200];
-	while( fgets( line, sizeof(line), file ) != NULL ){
-		if ( line[0] != '\n' )
-		{
-			count++;
-		}
-	}
-	fclose( file );	
-	return count;
+void * getTokens( char * id, char * path, char * filename, char * lifes ){
+	struct SuicideProcessInfo suicida;
+	
+	suicida.id = id;
+	strcat( path, "/");
+	suicida.path = path;
+	suicida.filename = filename;
+	suicida.lifes = lifes;	
+	suicidas[count] = suicida;	
+	count++;
+	
+	return NULL;
 }
 
 int my_itoa(int val, char* buf)

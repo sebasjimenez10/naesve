@@ -771,7 +771,7 @@ YY_RULE_SETUP
 case 3:
 YY_RULE_SETUP
 #line 14 "src/Linux/archcfg.l"
-{yylval = strdup(yytext); return (IDENTIFICADOR);}	
+{yylval = (int)strdup(yytext); return (IDENTIFICADOR);}	
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
@@ -781,7 +781,7 @@ YY_RULE_SETUP
 case 5:
 YY_RULE_SETUP
 #line 16 "src/Linux/archcfg.l"
-{yylval = strdup(yytext); return (PATH);}
+{yylval = (int)strdup(yytext); return (PATH);}
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
@@ -791,7 +791,7 @@ YY_RULE_SETUP
 case 7:
 YY_RULE_SETUP
 #line 18 "src/Linux/archcfg.l"
-{yylval = strdup(yytext); return (VIDAS);}
+{yylval = (int)strdup(yytext); return (VIDAS);}
 	YY_BREAK
 case 8:
 YY_RULE_SETUP

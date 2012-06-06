@@ -11,11 +11,11 @@ numero						[0-9]+
 %%
 [\t\n\s]						;
 "ProcesoSui"					{processCount++; return (PROCESOSUI);}
-{id}							{yylval = strdup(yytext); return (IDENTIFICADOR);}	
+{id}							{yylval = (int)strdup(yytext); return (IDENTIFICADOR);}	
 "{"							{return (ALLAVE);}
-([a-zA-Z0-9]+)?(\/[a-zA-Z0-9]+)+	{yylval = strdup(yytext); return (PATH);}
+([a-zA-Z0-9]+)?(\/[a-zA-Z0-9]+)+	{yylval = (int)strdup(yytext); return (PATH);}
 "::"							{return (CPUNTOS);}
-{numero}						{yylval = strdup(yytext); return (VIDAS);}
+{numero}						{yylval = (int)strdup(yytext); return (VIDAS);}
 "}"							{return (CLLAVE);}
 .							;
 %%

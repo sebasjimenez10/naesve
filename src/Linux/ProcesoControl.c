@@ -47,10 +47,10 @@ struct option long_options[] = {
 //Hilo que imprime del descriptor de archivo que le asignen a la salida estandar
 //void * printStdout( void * file );
 
-//
+//Funcion para leer y escribir de manera multiplexada
 int leerEscribir(fd_set* set, int in, int out);
 
-//
+//Funcion para validar el set de donde se ha leido
 int validarError(fd_set* set, int in);
 
 //Funcion principal encargada de lanzar el proceso suicida y hacerlo revivir tambien lee de las salidas estandar stdout, stderr
@@ -90,33 +90,40 @@ int main( int argc, char *argv[] )
 	}
 	strcat( path, filename );
 	
+	//Si las vidas son 0 es porque vive infinito
 	if( lifes == 0 )
 	{
 		lifes = -1;
 	}
-			
+	
+	//Ciclo en el cual se ejecutan los suicidas dado el numero de vidas o vidas infinitas
 	while ( TRUE )
 	{
-		fd_set readfds, execptfds; //Multiplex
-		int nFds; //Multiplex
+		fd_set readfds, execptfds; //Conjuntos para los descriptores a leer (Multiplex)
+		int nFds; //Variable que almacena el numero de descriptores de archivo que se pueden leer
 		
-		//Pipes
+		//Declaracion de las tuberias
 		int pipeParentRead[2];
 		int pipeParentWrite[2];
 		int pipeParentError[2];
 
+		//Se inician las tuberias, si alguna no pudo ser creada el programa termina
 		if( pipe( pipeParentRead ) || pipe( pipeParentWrite ) || pipe( pipeParentError ) ){
 		    	printf("Error: La tuberia no pudo ser creada");
 			exit(1);
 		}
 		
+		//Declaracion y creacion del hijo (Proceso Control)
 		pid_t pid;
 		pid = fork();
+		
+		//Se verifica que el hijo se haya podido crear
 		if( pid == (pid_t)(-1) )
 		{
 			exit( 1 );
 		}else if ( pid == 0 )
 		{
+			//Se cambian los descriptores de archivo del hijo
 			dup2( pipeParentRead[1],1 );
 			close( pipeParentRead[0] );
 			close( pipeParentRead[1] );
@@ -129,11 +136,14 @@ int main( int argc, char *argv[] )
 			close( pipeParentWrite[0] );
 			close( pipeParentWrite[1] );
 			
+			//Se cambia la imagen del proceso del hijo
 			execl( path, filename, NULL);
 			
+			//Si este codigo se ejecuta hubo un error cambiando la imagen
 			fprintf( stderr, "Hubo un error al ejecutar el suicida\n");
 		}
-		
+		//Codigo del padre
+		//Se cierran los extremos de las tuberias que no se van a utilizar por el padre
 		close( pipeParentRead[1] );
 		close( pipeParentWrite[0] );	
 		/* Para esta primera entrega no esta definido el uso, pero si su declaracion */
@@ -144,22 +154,27 @@ int main( int argc, char *argv[] )
 /*		int retOut, retErr;*/
 /*		pthread_create( &threadErr, NULL, printStderr, (void *) pipeParentError[0] );*/
 /*		pthread_create( &threadOut, NULL, printStdout, (void *) pipeParentRead[0] );*/
-		
+
+		//Se verifica el estado del hijo hasta que este muera, para leer lo que este escribiendo en la salida o el error
 		while(TRUE){
 			int status;
 			pid_t result = waitpid(pid, &status, WNOHANG);
 			if (result == 0){
-				// Still Alive
+				// El hijo todavia esta vivo
+				//Se limpian los conjuntos
 				FD_ZERO(&readfds);
 				FD_ZERO(&execptfds);
-
+				
+				//Se agregan los extremos correspondientes de las tuberias a los conjuntos de descriptores
 				FD_SET(pipeParentRead[0], &readfds);
 				FD_SET(pipeParentError[0], &readfds);
 				FD_SET(pipeParentRead[0], &execptfds);
 				FD_SET(pipeParentError[0], &execptfds);
 
+				//Para solucionar la salida combinada en la consola se utiliza un semaforo mutex
 				nFds = select((int) pipeParentError[0] + 1, &readfds, NULL, &execptfds, NULL);
-			
+				
+				//Si hay algun descriptor disponible para la operacion de E/S, esta se realiza
 				if (nFds > 0) {
 					if (leerEscribir(&readfds, pipeParentRead[0], 1) < 0 && errno != 0) {
 						fprintf(stderr, "Error en la lectura pipeRead: %d %s\n", errno, strerror(errno));
@@ -182,7 +197,8 @@ int main( int argc, char *argv[] )
 					}	
 				}
 		 	}else if( result > 0 ){
-		 		// Dead
+		 		// El hijo ha muerto
+		 		//Escribe en la tuberia la razon por la cual murio el suicida
 		 		if( lifes == -1 ){
 		 			fprintf(stdout, "Proceso suicida %s termino por causa %d -- Proceso Control %d, vidas restantes: Infinitas\n",
 						id, status, pConId );
@@ -195,6 +211,7 @@ int main( int argc, char *argv[] )
 		 	}
 		}
 		
+		//Se cierran los extremos de las tuberias usadas por el padre
 		close(pipeParentRead[0]);
 		close(pipeParentWrite[1]);
 		close(pipeParentError[0]);
@@ -204,10 +221,10 @@ int main( int argc, char *argv[] )
 		
 		if( lifes == 1 )	
 		{
-			//Finish
+			//Termina cuando vive las vidas que tenia
 			break;
 		}else if( lifes > 1 ){
-			//Continue
+			//Aun faltan vidas por vivir, continua viviendo
 			lifes--;
 		}
 	}

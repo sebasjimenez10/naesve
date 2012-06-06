@@ -3,7 +3,7 @@
 make:
 	bison -yd src/Linux/archcfg.y -o src/Linux/y.tab.c
 	flex -o src/Linux/lex.yy.c src/Linux/archcfg.l
-	gcc -o ./bin/conctrl src/Linux/lex.yy.c src/Linux/y.tab.c src/Linux/ConsolaControl.c -ll -ly -Wall -pthread
+	gcc -o ./bin/conctrl src/Linux/lex.yy.c src/Linux/y.tab.c src/Linux/ConsolaControl.c -ll -ly -W -pthread
 	gcc -o ./bin/procesoctrl    src/Linux/ProcesoControl.c   -Wall -pthread
 	gcc -o ./bin/ProcesoSuicida src/Linux/ProcesoSuicida.c   -Wall
 
