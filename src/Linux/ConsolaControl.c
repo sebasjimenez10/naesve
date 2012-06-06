@@ -178,6 +178,7 @@ void * hilo_de_consola( void *arg )
 		
 		//Si este codigo se ejecuta hubo un error cambiando la imagen
 		fprintf( stderr, "Error cambiando imagen de proceso\n" );
+		exit(1);
 	}
 	//Codigo del padre
 	//Se cierran los extremos de las tuberias que no se van a utilizar por el padre

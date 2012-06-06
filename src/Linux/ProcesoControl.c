@@ -138,9 +138,12 @@ int main( int argc, char *argv[] )
 			
 			//Se cambia la imagen del proceso del hijo
 			execl( path, filename, NULL);
-			
 			//Si este codigo se ejecuta hubo un error cambiando la imagen
-			fprintf( stderr, "Hubo un error al ejecutar el suicida\n");
+			fprintf( stderr, "Hubo un error al ejecutar el suicida: %s. Verifique el archivo de configuracion\n", id);
+			usleep(100 * 1000);
+			
+			kill( getppid(), SIGKILL );
+			return -1;
 		}
 		//Codigo del padre
 		//Se cierran los extremos de las tuberias que no se van a utilizar por el padre
